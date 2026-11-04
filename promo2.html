@@ -1,0 +1,352 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>Kafri Nadlan – kinetic promo</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #0b0f1a; }
+  #stage { display: block; margin: 0 auto; height: 100vh; width: auto; aspect-ratio: 9 / 16; }
+  #log { position: fixed; top: 6px; left: 6px; font: 12px monospace; color: #9f9; direction: ltr; }
+</style>
+</head>
+<body>
+<canvas id="stage" width="1080" height="1920"></canvas>
+<div id="log"></div>
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
+<script>
+/* Kinetic-typography promo (9:16): bold words popping on the beat, flat colour blocks that cut in,
+   a phone mock-up with floating cards, a call to action. Brand colours; every claim is from the site.
+   Music: composed here from scratch with WebAudio (original, no samples). 100 BPM, 4/4 -> beat 0.6 s, bar 2.4 s. */
+const W = 1080, H = 1920, FPS = 30, BEAT = 0.6, BAR = 2.4, DUR = 38.4, SR = 48000;
+const cv = document.getElementById('stage'), ctx = cv.getContext('2d');
+const logEl = document.getElementById('log');
+const log = m => { logEl.textContent = m; window.__log = m; };
+
+const C = {
+  navyDeep: 'oklch(0.2 0.06 258)', navy: 'oklch(0.3 0.08 258)', gold: 'oklch(0.72 0.11 78)', goldDeep: 'oklch(0.5 0.1 78)',
+  cream: 'oklch(0.985 0.004 85)', beige: 'oklch(0.95 0.012 85)', card: 'oklch(0.995 0.002 85)',
+  ink: 'oklch(0.22 0.05 258)', inkSoft: 'oklch(0.22 0.05 258 / 0.7)', border: 'oklch(0.88 0.015 85)',
+  green: 'oklch(0.62 0.17 150)', red: 'oklch(0.58 0.2 27)'
+};
+const F = (w, s) => `${w} ${s}px Heebo`;
+
+function bez(x1, y1, x2, y2) {
+  return t => {
+    if (t <= 0) return 0; if (t >= 1) return 1;
+    let lo = 0, hi = 1, m;
+    for (let i = 0; i < 24; i++) { m = (lo + hi) / 2; const x = 3*(1-m)*(1-m)*m*x1 + 3*(1-m)*m*m*x2 + m*m*m; if (x < t) lo = m; else hi = m; }
+    m = (lo + hi) / 2; return 3*(1-m)*(1-m)*m*y1 + 3*(1-m)*m*m*y2 + m*m*m;
+  };
+}
+const easeOut = bez(.22, 1, .36, 1), easeIO = bez(.65, 0, .35, 1);
+const easeBack = x => { const c1 = 1.70158, c3 = c1 + 1; return 1 + c3 * Math.pow(x - 1, 3) + c1 * Math.pow(x - 1, 2); };
+const P = (t, s, d) => Math.min(1, Math.max(0, (t - s) / d));
+const popAnim = (t, t0, d = 0.42) => { const p = P(t, t0, d); if (t < t0) return null; return { a: Math.min(1, p * 5), s: p < 1 ? Math.max(0.01, easeBack(p)) : 1 }; };
+
+const IM = {};
+const loadImg = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('image failed: ' + src)); i.src = src; });
+
+let SA = 1;
+const A = (a = 1) => { ctx.globalAlpha = Math.max(0, Math.min(1, SA * a)); };
+function text(s, x, y, font, color, align = 'center', a = 1, dir = 'rtl') {
+  ctx.font = font; ctx.fillStyle = color; ctx.textAlign = align; ctx.direction = dir; ctx.textBaseline = 'alphabetic'; A(a); ctx.fillText(s, x, y);
+}
+function wrap(s, font, maxW) {
+  ctx.font = font; ctx.direction = 'rtl';
+  const words = s.split(' '), lines = []; let cur = '';
+  for (const w of words) { const test = cur ? cur + ' ' + w : w; if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = w; } else cur = test; }
+  if (cur) lines.push(cur); return lines;
+}
+const rr = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); };
+const fill = c => { A(1); ctx.fillStyle = c; ctx.fillRect(0, 0, W, H); };
+function disc(x, y, r, color, a = 1) { A(a); ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+function shadow(on) { if (on) { ctx.shadowColor = 'rgba(0,0,0,.3)'; ctx.shadowBlur = 44; ctx.shadowOffsetY = 18; } else { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; } }
+function cover(img, scale, ox, oy) { const r = Math.max(W / img.width, H / img.height) * scale; const w = img.width * r, h = img.height * r; ctx.drawImage(img, (W - w) / 2 + ox, (H - h) / 2 + oy, w, h); }
+
+/* a block of big words; each word pops in on its own beat. Words are laid out right-to-left. */
+function words(lines, cx, y0, lh, size, colorOf, t, t0, step, weight = 900) {
+  let idx = 0;
+  lines.forEach((ws, li) => {
+    const font = F(weight, size); ctx.font = font; ctx.direction = 'rtl';
+    const gap = size * 0.26, widths = ws.map(w => ctx.measureText(w).width), total = widths.reduce((a, b) => a + b, 0) + gap * (ws.length - 1);
+    let xr = cx + total / 2; const y = y0 + li * lh;
+    ws.forEach((w, wi) => {
+      const pa = popAnim(t, t0 + idx * step); idx++;
+      const wc = xr - widths[wi] / 2; xr -= widths[wi] + gap;
+      if (!pa) return;
+      ctx.save(); ctx.translate(wc, y - size * 0.34); ctx.scale(pa.s, pa.s); ctx.translate(0, size * 0.34);
+      text(w, 0, 0, font, colorOf(w, li, wi), 'center', pa.a); ctx.restore();
+    });
+  });
+}
+function outline(t, u) {   // faint outlined words drifting behind, like the reference's text pattern
+  ctx.save(); ctx.font = F(800, 120); ctx.direction = 'rtl'; ctx.textAlign = 'left'; ctx.lineWidth = 3; ctx.strokeStyle = 'oklch(0.72 0.11 78 / 0.2)'; A(1);
+  const unit = 'שקיפות · אחריות · ליווי אישי · ', uw = ctx.measureText(unit).width;
+  for (let r = 0; r < 16; r++) { const y = 150 + r * 130, dir = r % 2 ? 1 : -1, off = (((u * 55 * dir) % uw) + uw) % uw; for (let k = -1; k < Math.ceil(W / uw) + 2; k++) ctx.strokeText(unit, k * uw - off, y); }
+  ctx.restore();
+}
+const sub = (s, y, t, t0, color = 'oklch(0.985 0.004 85 / 0.85)', size = 44, w = 860) => {
+  const e = easeOut(P(t, t0, .5)); wrap(s, F(500, size), w).forEach((l, k) => text(l, W / 2, y + k * (size * 1.3) + (1 - e) * 24, F(500, size), color, 'center', e));
+};
+
+/* ---------- scenes (u = seconds since the scene started) ---------- */
+function s1a(u) {   // hook: navy
+  fill(C.navyDeep);
+  words([['כל', 'עסקת', 'קרקע'], ['נראית', 'מבטיחה.']], W / 2, 860, 210, 150, w => w === 'מבטיחה.' ? C.gold : C.cream, u, 0, 0.3);
+}
+function s1b(u) {   // twist: cream
+  fill(C.cream);
+  words([['עד'], ['שבודקים.']], W / 2, 830, 250, 230, () => C.navy, u, 0, 0.6);
+  const e = easeOut(P(u, 1.0, .6)); A(1); ctx.fillStyle = C.gold; ctx.fillRect(W / 2 + 400, 1120, -800 * e, 22);
+}
+const PROBLEMS = [
+  { bg: C.navyDeep, fg: C.cream, hi: C.gold, tag: 'מוקש 01', lines: [['שטח', 'קטן'], ['מדי?']], sub: 'רכישת "פירורים" של 40 מ"ר עלולה להימחק בטבלאות האיזון.' },
+  { bg: C.gold, fg: C.navyDeep, hi: C.cream, tag: 'מוקש 02', size: 132, lines: [['קרקע', 'חקלאית'], ['לנצח?']], sub: 'קרקע חקלאית רגילה עלולה להישאר כזו לעשרות שנים.' },
+  { bg: C.navy, fg: C.cream, hi: C.gold, tag: 'מוקש 03', lines: [['הכסף'], ['אצל', 'היזם?']], sub: 'כספים שמועברים ישירות ליזם חשופים לחובותיו.' }
+];
+const problem = i => u => {
+  const p = PROBLEMS[i]; fill(p.bg);
+  const te = easeOut(P(u, 0, .4)); text(p.tag, W / 2, 560, F(800, 48), i === 1 ? C.navyDeep : C.gold, 'center', te * (i === 1 ? .7 : 1));
+  const flat = p.lines.flat();
+  words(p.lines, W / 2, 800, p.size ? p.size * 1.25 : 220, p.size || 176, (w) => (w === flat[flat.length - 1] ? p.hi : p.fg), u, 0, 0.6);
+  sub(p.sub, 1230, u, 1.5, i === 1 ? 'oklch(0.2 0.06 258 / 0.85)' : undefined);
+};
+function s3(u) {    // reveal: photo + logo
+  fill(C.navyDeep); A(1); cover(IM.hero, 1.12 - 0.05 * P(u, 0, 4.8), -30 * P(u, 0, 4.8), 0);
+  A(1); ctx.fillStyle = 'oklch(0.2 0.06 258 / 0.78)'; ctx.fillRect(0, 0, W, H);
+  const out = 1 - P(u, 1.8, 0.4);
+  if (out > 0) { SA = out; words([['אצלנו'], ['זה', 'אחרת.']], W / 2, 860, 230, 190, w => w === 'אחרת.' ? C.gold : C.cream, u, 0, 0.6); SA = 1; }
+  const e = easeOut(P(u, 2.2, 0.8)), lw = 700, lh = lw * IM.logo.height / IM.logo.width;
+  ctx.save(); ctx.translate(W / 2, 700); const sc = 0.78 + 0.22 * e; ctx.scale(sc, sc); ctx.filter = `blur(${(1 - e) * 14}px)`; A(e); ctx.drawImage(IM.logo, -lw / 2, -lh / 2, lw, lh); ctx.restore(); ctx.filter = 'none';
+  words([['השקעה', 'שנבדקה'], ['בשבע', 'עיניים']], W / 2, 1230, 120, 100, (w) => w === 'עיניים' ? C.gold : C.cream, u, 3.0, 0.3, 800);
+}
+function s4a(u) {   // answer 1: 80 sqm
+  fill(C.cream);
+  text('אנו משווקים יחידות של', W / 2, 400, F(600, 58), C.inkSoft, 'center', easeOut(P(u, 0, .5)));
+  const pa = popAnim(u, 0.6, .5);
+  if (pa) { ctx.save(); ctx.translate(W / 2, 950); ctx.scale(pa.s, pa.s); text('80', 0, 0, F(900, 600), C.navy, 'center', pa.a); ctx.restore(); }
+  const e = easeOut(P(u, 1.0, .6)); A(1); ctx.fillStyle = C.gold; ctx.fillRect(W / 2 + 300, 1040, -600 * e, 22);
+  words([['מ"ר', 'לפחות.']], W / 2, 1300, 0, 170, () => C.navy, u, 1.2, 0.6);
+  sub('כדי להבטיח את זכותכם לדירה.', 1430, u, 1.9, C.inkSoft, 52);
+}
+function s4b(u) {   // answer 2: 58%
+  fill(C.navyDeep);
+  text('חלקה 76', W / 2, 520, F(800, 56), C.gold, 'center', easeOut(P(u, 0, .5)));
+  const ce = easeOut(P(u, 0.3, 1.5)), n = Math.round(58 * ce), pa = popAnim(u, 0.1, .5);
+  if (pa) { ctx.save(); ctx.translate(W / 2, 980); ctx.scale(pa.s, pa.s); text(`${n}%`, 0, 0, F(900, 470), C.gold, 'center', pa.a); ctx.restore(); }
+  words([['מסומנת', 'כאזור', 'פיתוח'], ['בתמ"א', '70']], W / 2, 1130, 100, 86, () => C.cream, u, 1.2, 0.3, 800);
+  A(1); ctx.fillStyle = 'oklch(0.985 0.004 85 / 0.18)'; rr(140, 1370, 800, 26, 13); ctx.fill();
+  const bw = 800 * 0.58 * ce; if (bw > 1) { const g = ctx.createLinearGradient(940, 0, 940 - bw, 0); g.addColorStop(0, C.gold); g.addColorStop(1, 'oklch(0.8 0.1 85)'); ctx.fillStyle = g; rr(940 - bw, 1370, bw, 26, 13); ctx.fill(); }
+  const ne = easeOut(P(u, 1.8, .5)); wrap('הקרקע מסווגת כיום כקרקע חקלאית, וערכה העתידי תלוי בהליכי תכנון ואישור.', F(400, 30), 880).forEach((l, k) => text(l, W / 2, 1720 + k * 42, F(400, 30), 'oklch(0.985 0.004 85 / 0.7)', 'center', ne));
+}
+function s4c(u) {   // answer 3: trust account
+  fill(C.gold);
+  const pa = popAnim(u, 0.0, .5), lk = easeOut(P(u, 1.0, .35));
+  if (pa) {
+    ctx.save(); ctx.translate(W / 2, 640); ctx.scale(pa.s, pa.s); A(pa.a);
+    ctx.strokeStyle = C.navyDeep; ctx.lineWidth = 26; ctx.lineCap = 'round'; ctx.beginPath(); ctx.arc(0, -40 + (1 - lk) * -34, 92, Math.PI, 0); ctx.lineTo(92, -30 + (1 - lk) * -34); ctx.moveTo(-92, -40 + (1 - lk) * -34); ctx.lineTo(-92, -30); ctx.stroke();
+    ctx.fillStyle = C.navyDeep; rr(-150, -40, 300, 230, 40); ctx.fill(); ctx.fillStyle = C.gold; ctx.beginPath(); ctx.arc(0, 62, 26, 0, 7); ctx.fill(); ctx.fillRect(-9, 62, 18, 62); ctx.restore();
+  }
+  words([['כספי', 'הרוכשים'], ['בנאמנות', 'סגורה']], W / 2, 1010, 170, 132, (w) => w === 'סגורה' ? C.cream : C.navyDeep, u, 0.6, 0.6);
+  sub('עד לרישום בטאבו.', 1330, u, 2.0, 'oklch(0.2 0.06 258 / 0.85)', 60);
+}
+const STOPS = [0, 920, 2050, 2750, 5300];
+function pageScroll(tt) {
+  const hold = 0.95, mv = 0.55; let c = 0.4;
+  for (let i = 0; i < STOPS.length - 1; i++) { c += hold; if (tt < c) return STOPS[i]; if (tt < c + mv) return STOPS[i] + (STOPS[i + 1] - STOPS[i]) * easeIO((tt - c) / mv); c += mv; }
+  return STOPS[STOPS.length - 1];
+}
+function floatCard(cx, cy, w, h, rot, u, t0, drawFn) {
+  const pa = popAnim(u, t0, 0.5); if (!pa) return;
+  const old = SA; SA = old * pa.a; ctx.save(); ctx.translate(cx, cy); ctx.rotate(rot * pa.s); ctx.scale(pa.s, pa.s);
+  A(1); shadow(true); ctx.fillStyle = C.card; rr(-w / 2, -h / 2, w, h, 34); ctx.fill(); shadow(false); drawFn(w, h); ctx.restore(); SA = old;
+}
+function s5(u) {    // the site, in a phone, with floating facts
+  fill(C.navyDeep); outline(0, u);
+  const rg = ctx.createRadialGradient(W / 2, 1000, 100, W / 2, 1000, 1200); rg.addColorStop(0, 'oklch(0.3 0.08 258 / 0.9)'); rg.addColorStop(1, 'oklch(0.2 0.06 258 / 0)'); A(1); ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+  words([['הכל', 'באתר.']], W / 2, 250, 0, 150, () => C.cream, u, 0.0, 0.6);
+  words([['בשקיפות', 'מלאה.']], W / 2, 400, 0, 110, () => C.gold, u, 0.6, 0.6, 800);
+  const e = easeOut(P(u, 0.3, .8)), px = 250, py = 520 + (1 - e) * 90, pw = 580, ph = 1180;
+  A(e); shadow(true); ctx.fillStyle = 'oklch(0.13 0.03 258)'; rr(px, py, pw, ph, 78); ctx.fill(); shadow(false);
+  A(e * .6); ctx.strokeStyle = C.gold; ctx.lineWidth = 3; rr(px + 1.5, py + 1.5, pw - 3, ph - 3, 76); ctx.stroke();
+  const sx = px + 16, sy = py + 16, sw = pw - 32, sh = ph - 32, k = sw / 750, srcH = sh / k;
+  ctx.save(); rr(sx, sy, sw, sh, 62); ctx.clip(); A(e); ctx.fillStyle = C.cream; ctx.fillRect(sx, sy, sw, sh);
+  const srcY = Math.min(IM.site.height - srcH, pageScroll(u) * 2); A(e); ctx.drawImage(IM.site, 0, srcY, 750, srcH, sx, sy, sw, sh); A(e); ctx.drawImage(IM.header, 0, 0, 750, 138, sx, sy, sw, 138 * k); ctx.restore();
+  floatCard(235, 700, 400, 170, -0.07, u, 1.2, (w, h) => { text('גוש 6350', w / 2 - 36, -8, F(800, 50), C.ink, 'right'); text('חלקה 76', w / 2 - 36, 52, F(700, 44), C.goldDeep, 'right'); });
+  floatCard(850, 900, 420, 170, 0.06, u, 2.4, (w, h) => { text('תמ"א 70', w / 2 - 36, -8, F(800, 50), C.ink, 'right'); text('מטרו סגולה', w / 2 - 36, 52, F(700, 44), C.goldDeep, 'right'); });
+  floatCard(240, 1150, 420, 190, -0.05, u, 3.6, (w, h) => {
+    text('58%', w / 2 - 36, 10, F(900, 78), C.ink, 'right'); text('אזור פיתוח', w / 2 - 36, 62, F(600, 36), C.inkSoft, 'right');
+    A(1); ctx.fillStyle = C.border; rr(-w / 2 + 36, 72, w - 72, 12, 6); ctx.fill(); const g = ctx.createLinearGradient(w / 2 - 36, 0, -w / 2 + 36, 0); g.addColorStop(0, C.gold); g.addColorStop(1, 'oklch(0.8 0.1 85)'); ctx.fillStyle = g; rr(w / 2 - 36 - (w - 72) * 0.58, 72, (w - 72) * 0.58, 12, 6); ctx.fill();
+  });
+  floatCard(850, 1420, 430, 170, 0.07, u, 4.8, (w, h) => { text('בסמוך לתחנת', w / 2 - 36, -8, F(700, 42), C.ink, 'right'); text('הרכבת והמטרו', w / 2 - 36, 48, F(800, 46), C.goldDeep, 'right'); });
+}
+function s6a(u) {   // "ready to talk?" cream
+  fill(C.cream);
+  words([['מוכנים'], ['לשיחה?']], W / 2, 860, 290, 250, (w) => w === 'לשיחה?' ? C.navy : C.navy, u, 0, 0.6);
+  const e = easeOut(P(u, 0.9, .7)); A(1); ctx.fillStyle = C.gold; ctx.fillRect(W / 2 + 330, 1215, -660 * e, 22);
+}
+function s6b(u) {   // CTA: navy
+  fill(C.navyDeep);
+  const rg = ctx.createRadialGradient(W / 2, 500, 80, W / 2, 500, 1300); rg.addColorStop(0, C.navy); rg.addColorStop(1, 'oklch(0.2 0.06 258 / 0)'); A(1); ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+  const e0 = easeOut(P(u, 0.1, 0.8)), lw = 400, lh = lw * IM.logo.height / IM.logo.width;
+  ctx.save(); ctx.translate(W / 2, 330); const sc = 0.82 + 0.18 * e0; ctx.scale(sc, sc); ctx.filter = `blur(${(1 - e0) * 10}px)`; A(e0); ctx.drawImage(IM.logo, -lw / 2, -lh / 2, lw, lh); ctx.restore(); ctx.filter = 'none';
+  words([['לפגישת', 'ייעוץ'], ['אישית']], W / 2, 700, 130, 112, (w) => w === 'אישית' ? C.gold : C.cream, u, 0.6, 0.6);
+  [['אלעזר כפרי', '054-265-3666'], ['שלומי כפרי', '050-444-6184']].forEach(([name, num], i) => {
+    const pa = popAnim(u, 1.8 + i * 0.6, 0.5); if (!pa) return;
+    const y = 1010 + i * 190; ctx.save(); ctx.translate(W / 2, y + 70); ctx.scale(pa.s, pa.s); ctx.translate(-W / 2, -(y + 70));
+    A(pa.a); ctx.fillStyle = 'oklch(0.98 0.005 85 / 0.07)'; rr(90, y, 900, 140, 70); ctx.fill(); A(pa.a); ctx.strokeStyle = 'oklch(0.72 0.11 78 / 0.6)'; ctx.lineWidth = 3; rr(90, y, 900, 140, 70); ctx.stroke();
+    disc(920, y + 70, 46, 'oklch(0.72 0.11 78 / 0.2)', pa.a);
+    A(pa.a); ctx.strokeStyle = C.gold; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(906, y + 55); ctx.quadraticCurveTo(903, y + 86, 933, y + 86); ctx.lineTo(937, y + 75); ctx.lineTo(926, y + 70); ctx.lineTo(921, y + 77); ctx.quadraticCurveTo(912, y + 72, 909, y + 63); ctx.lineTo(916, y + 57); ctx.lineTo(911, y + 46); ctx.closePath(); ctx.stroke();
+    text(name, 860, y + 88, F(700, 46), C.cream, 'right', pa.a); text(num, 140, y + 90, F(900, 54), C.gold, 'left', pa.a, 'ltr'); ctx.restore();
+  });
+  const pb = popAnim(u, 3.0, 0.5);
+  if (pb) {
+    ctx.save(); ctx.translate(W / 2, 1480); ctx.scale(pb.s, pb.s); A(pb.a); ctx.fillStyle = C.gold; rr(-330, -70, 660, 140, 70); ctx.fill();
+    ctx.save(); rr(-330, -70, 660, 140, 70); ctx.clip(); const sh = (P(u, 3.4, 0.9) * 1.6 - 0.3); const gg = ctx.createLinearGradient(-330 + sh * 660, 0, -330 + sh * 660 + 200, 0); gg.addColorStop(0, 'rgba(255,255,255,0)'); gg.addColorStop(.5, 'rgba(255,255,255,.55)'); gg.addColorStop(1, 'rgba(255,255,255,0)'); ctx.fillStyle = gg; ctx.fillRect(-330, -70, 660, 140); ctx.restore();
+    text('לתיאום פגישה באתר', 0, 20, F(800, 54), C.navyDeep, 'center', pb.a); ctx.restore();
+  }
+  const ne = easeOut(P(u, 3.6, .6)); wrap('הקרקע מסווגת כיום כקרקע חקלאית, וערכה העתידי תלוי בהליכי תכנון ואישור.', F(400, 28), 880).forEach((l, k) => text(l, W / 2, 1700 + k * 40, F(400, 28), 'oklch(0.985 0.004 85 / 0.65)', 'center', ne));
+}
+const SC = [[0, s1a], [2.4, s1b], [4.8, problem(0)], [7.2, problem(1)], [9.6, problem(2)], [12.0, s3], [16.8, s4a], [19.2, s4b], [21.6, s4c], [24.0, s5], [31.2, s6a], [33.6, s6b]];
+function draw(t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.filter = 'none'; shadow(false); ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  let k = 0; while (k + 1 < SC.length && t >= SC[k + 1][0]) k++;
+  const p = k === 0 ? 1 : easeOut(P(t, SC[k][0], 0.38));
+  if (p < 1) { ctx.save(); SA = 1; SC[k - 1][1](t - SC[k - 1][0]); ctx.restore(); }
+  ctx.save(); if (p < 1) { ctx.beginPath(); ctx.rect(0, H * (1 - p), W, H * p); ctx.clip(); } SA = 1; SC[k][1](t - SC[k][0]); ctx.restore();
+  if (t > DUR - 0.6) { ctx.globalAlpha = Math.min(1, (t - (DUR - 0.6)) / 0.6); ctx.fillStyle = C.navyDeep; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+}
+
+/* ---------- original music ---------- */
+const POPS = [0, .3, .6, .9, 1.2, 2.4, 3.0, 4.8, 5.4, 6.0, 7.2, 7.8, 8.4, 9.6, 10.2, 10.8, 12.0, 12.6, 14.2, 15.0, 15.3, 17.4, 18.0, 18.6, 19.3, 19.8, 21.6, 22.2, 22.8, 25.2, 26.4, 27.6, 28.8, 31.2, 31.8, 33.6, 34.2, 34.8, 35.4, 36.6];
+const CHORDS = [ // Am7, Fmaj7, Cmaj7, G6
+  { pad: [220, 261.63, 329.63, 392], bass: 55, arp: [440, 523.25, 659.25, 783.99] },
+  { pad: [174.61, 220, 261.63, 329.63], bass: 43.65, arp: [349.23, 440, 523.25, 659.25] },
+  { pad: [261.63, 329.63, 392, 493.88], bass: 65.41, arp: [523.25, 659.25, 783.99, 987.77] },
+  { pad: [196, 246.94, 293.66, 329.63], bass: 49, arp: [392, 493.88, 587.33, 659.25] }
+];
+async function renderMusic() {
+  const oc = new OfflineAudioContext(2, Math.ceil(SR * (DUR + 1.2)), SR);
+  const master = oc.createGain(); master.gain.setValueAtTime(0.9, 0); master.gain.setValueAtTime(0.9, DUR - 2.2); master.gain.linearRampToValueAtTime(0.0001, DUR - 0.15);
+  const comp = oc.createDynamicsCompressor(); comp.threshold.value = -17; comp.knee.value = 12; comp.ratio.value = 3.5; comp.attack.value = 0.004; comp.release.value = 0.2;
+  master.connect(comp); comp.connect(oc.destination);
+  const irLen = Math.floor(SR * 2.4), ir = oc.createBuffer(2, irLen, SR);
+  for (let ch = 0; ch < 2; ch++) { const d = ir.getChannelData(ch); for (let i = 0; i < irLen; i++) d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / irLen, 3.3); }
+  const verb = oc.createConvolver(); verb.buffer = ir; const vg = oc.createGain(); vg.gain.value = 0.34; verb.connect(vg); vg.connect(master);
+  const dry = oc.createGain(); dry.connect(master); const send = oc.createGain(); send.connect(verb);
+  const dl = oc.createDelay(1.5); dl.delayTime.value = BEAT * 0.75; const fb = oc.createGain(); fb.gain.value = 0.34; const dlp = oc.createBiquadFilter(); dlp.type = 'lowpass'; dlp.frequency.value = 2600;
+  dl.connect(dlp); dlp.connect(fb); fb.connect(dl); const dg = oc.createGain(); dg.gain.value = 0.5; dlp.connect(dg); dg.connect(master); dg.connect(send);
+  const nbuf = oc.createBuffer(1, SR, SR); { const d = nbuf.getChannelData(0); for (let i = 0; i < SR; i++) d[i] = Math.random() * 2 - 1; }
+  const noise = (t, dur, type, freq, q, gain, pan = 0, toVerb = 0) => {
+    const s = oc.createBufferSource(); s.buffer = nbuf; s.loop = true; const f = oc.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+    const g = oc.createGain(); g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.0008, t + dur); const p = oc.createStereoPanner(); p.pan.value = pan;
+    s.connect(f); f.connect(g); g.connect(p); p.connect(dry); if (toVerb) { const v = oc.createGain(); v.gain.value = toVerb; p.connect(v); v.connect(send); } s.start(t, Math.random()); s.stop(t + dur + 0.05);
+  };
+  const tone = ({ f, t, dur, type = 'sawtooth', gain = 0.1, a = 0.01, r = 0.2, lp = 2000, det = 0, pan = 0, verbAmt = 0.25 }) => {
+    const o = oc.createOscillator(); o.type = type; o.frequency.value = f; o.detune.value = det; const fl = oc.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.value = lp;
+    const g = oc.createGain(); g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(gain, t + a); g.gain.setValueAtTime(gain, t + Math.max(a, dur)); g.gain.linearRampToValueAtTime(0, t + dur + r);
+    const p = oc.createStereoPanner(); p.pan.value = pan; o.connect(fl); fl.connect(g); g.connect(p); p.connect(dry);
+    if (verbAmt) { const v = oc.createGain(); v.gain.value = verbAmt; p.connect(v); v.connect(send); } o.start(t); o.stop(t + dur + r + 0.05);
+  };
+  const pluck = (f, t, gain, pan) => {
+    ['triangle', 'sawtooth'].forEach((type, i) => {
+      const o = oc.createOscillator(); o.type = type; o.frequency.value = f; const fl = oc.createBiquadFilter(); fl.type = 'lowpass'; fl.frequency.setValueAtTime(5200, t); fl.frequency.exponentialRampToValueAtTime(900, t + 0.28);
+      const g = oc.createGain(); const gg = gain * (i ? 0.35 : 1); g.gain.setValueAtTime(gg, t); g.gain.exponentialRampToValueAtTime(0.0008, t + 0.5);
+      const p = oc.createStereoPanner(); p.pan.value = pan; o.connect(fl); fl.connect(g); g.connect(p); p.connect(dry);
+      const v = oc.createGain(); v.gain.value = 0.3; p.connect(v); v.connect(send); const d2 = oc.createGain(); d2.gain.value = 0.55; p.connect(d2); d2.connect(dl); o.start(t); o.stop(t + 0.6);
+    });
+  };
+  const kick = (t, gain = 0.95) => {
+    const o = oc.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(155, t); o.frequency.exponentialRampToValueAtTime(46, t + 0.13);
+    const g = oc.createGain(); g.gain.setValueAtTime(gain, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.4); o.connect(g); g.connect(dry); o.start(t); o.stop(t + 0.45); noise(t, 0.02, 'highpass', 2500, 0.7, gain * 0.25);
+  };
+  const clap = (t, gain = 0.34) => { for (let k = 0; k < 3; k++) noise(t + k * 0.011, k === 2 ? 0.16 : 0.03, 'bandpass', 1700, 0.8, gain, 0, k === 2 ? 0.25 : 0); };
+  const hat = (t, gain = 0.07, open = false) => noise(t, open ? 0.12 : 0.035, 'highpass', 8200, 0.7, gain, (Math.random() - .5) * .4);
+  const crash = (t, gain = 0.32) => { noise(t, 1.6, 'highpass', 4800, 0.6, gain, 0, 0.4); const o = oc.createOscillator(); o.type = 'sine'; o.frequency.setValueAtTime(70, t); o.frequency.exponentialRampToValueAtTime(34, t + 0.9); const g = oc.createGain(); g.gain.setValueAtTime(0.7, t); g.gain.exponentialRampToValueAtTime(0.001, t + 1.0); o.connect(g); g.connect(dry); o.start(t); o.stop(t + 1.1); };
+  const riser = (t0, t1, gain = 0.2) => { const s = oc.createBufferSource(); s.buffer = nbuf; s.loop = true; const f = oc.createBiquadFilter(); f.type = 'bandpass'; f.Q.value = 1.4; f.frequency.setValueAtTime(300, t0); f.frequency.exponentialRampToValueAtTime(7500, t1);
+    const g = oc.createGain(); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(gain, t1 - 0.05); g.gain.linearRampToValueAtTime(0, t1 + 0.02); s.connect(f); f.connect(g); g.connect(dry); const v = oc.createGain(); v.gain.value = 0.3; g.connect(v); v.connect(send); s.start(t0); s.stop(t1 + 0.1); };
+
+  for (let b = 0; b < 16; b++) {
+    const t0 = b * BAR, ch = CHORDS[b % 4], bright = b >= 5, breakdown = b === 13, last = b >= 14;
+    // pad: two detuned saws per note
+    ch.pad.forEach((f, i) => [-8, 8].forEach((det, j) => tone({ f, t: t0, dur: BAR - 0.05, type: 'sawtooth', gain: (b < 2 ? 0.016 : 0.026) * (breakdown ? 0.8 : 1), a: 0.5, r: 0.6, lp: bright ? 1900 : 1000, det, pan: (i - 1.5) * 0.28 + (j ? 0.15 : -0.15), verbAmt: 0.4 })));
+    // bass
+    if (b >= 2 && !breakdown) [[0, 0.5], [1.5, 0.4], [2, 0.5], [3.5, 0.3]].forEach(([bt, d]) => tone({ f: ch.bass * 2, t: t0 + bt * BEAT, dur: d * BEAT, type: 'triangle', gain: 0.24, a: 0.01, r: 0.12, lp: 600, verbAmt: 0 }));
+    // drums
+    for (let beat = 0; beat < 4; beat++) {
+      const t = t0 + beat * BEAT;
+      if (b <= 1) { if (beat % 2 === 0) kick(t, 0.32); }
+      else if (b <= 4) { if (beat % 2 === 0 || (b === 4 && beat === 3)) kick(t, 0.8); if (beat % 2 === 1 && b >= 3) clap(t, 0.2); }
+      else if (b <= 12 || last) { kick(t, 0.85); if (beat % 2 === 1) clap(t, 0.34); }
+      else if (breakdown && beat === 0) kick(t, 0.6);
+      if (b >= 2 && !breakdown) { hat(t + BEAT * 0.5, 0.06, beat === 3); if (b >= 5) { hat(t + BEAT * 0.25, 0.03); hat(t + BEAT * 0.75, 0.03); } }
+    }
+    // arp / plucks
+    if ((b >= 5 && b <= 12) || last || breakdown) {
+      const order = [0, 2, 1, 3, 2, 1, 3, 2];
+      for (let i = 0; i < 8; i++) pluck(ch.arp[order[i]], t0 + i * BEAT * 0.5, breakdown ? 0.05 : 0.085, i % 2 ? 0.35 : -0.35);
+    } else if (b >= 2 && b <= 4) for (let beat = 0; beat < 4; beat += 2) pluck(ch.arp[beat === 0 ? 0 : 2], t0 + beat * BEAT, 0.05, 0);
+  }
+  riser(10.8, 12.0, 0.22); for (let i = 0; i < 6; i++) clap(11.4 + i * 0.1, 0.12 + i * 0.05);   // build into the drop
+  crash(12.0, 0.34); riser(33.0, 33.6, 0.18); crash(33.6, 0.36); kick(33.6, 1.0);
+  POPS.forEach(t => tone({ f: 880, t, dur: 0.03, type: 'sine', gain: 0.035, a: 0.002, r: 0.06, lp: 6000, verbAmt: 0.2 }));
+  const buf = await oc.startRendering();
+  // gentle soft clip for loudness (a little drive), then normalise the peak
+  const drive = 1.7, tn = Math.tanh(drive);
+  for (let ch = 0; ch < 2; ch++) { const d = buf.getChannelData(ch); for (let i = 0; i < d.length; i++) d[i] = Math.tanh(d[i] * drive) / tn; }
+  let peak = 0; for (let ch = 0; ch < 2; ch++) { const d = buf.getChannelData(ch); for (let i = 0; i < d.length; i++) peak = Math.max(peak, Math.abs(d[i])); }
+  const k = peak > 0 ? 0.92 / peak : 1; for (let ch = 0; ch < 2; ch++) { const d = buf.getChannelData(ch); for (let i = 0; i < d.length; i++) d[i] *= k; }
+  window.__musicPeakBefore = peak; return buf;
+}
+window.musicStats = async function () {
+  const buf = await renderMusic(); window.__music = buf; const d = buf.getChannelData(0), out = { seconds: +buf.duration.toFixed(2), peakBefore: +window.__musicPeakBefore.toFixed(3), perSecondRms: [] };
+  for (let s = 0; s < Math.floor(DUR); s++) { let a = 0; for (let i = s * SR; i < (s + 1) * SR; i++) a += d[i] * d[i]; out.perSecondRms.push(+Math.sqrt(a / SR).toFixed(3)); } return out;
+};
+
+/* ---------- encoding ---------- */
+async function pickVideo() {
+  for (const codec of ['avc1.640029', 'avc1.4d0029']) { try { const r = await VideoEncoder.isConfigSupported({ codec, width: W, height: H, bitrate: 7e6, framerate: FPS, avc: { format: 'avc' } }); if (r.supported) return codec; } catch (e) {} }
+  return null;
+}
+window.startRender = async function () {
+  window.__done = false; window.__err = null;
+  try {
+    const vcodec = await pickVideo(); if (!vcodec) throw new Error('no H.264 encoder');
+    if (!(await AudioEncoder.isConfigSupported({ codec: 'mp4a.40.2', sampleRate: SR, numberOfChannels: 2, bitrate: 160000 })).supported) throw new Error('no AAC encoder');
+    log('composing music…'); const music = window.__music || await renderMusic(); window.__music = music;
+    const muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: W, height: H }, audio: { codec: 'aac', numberOfChannels: 2, sampleRate: SR }, fastStart: 'in-memory' });
+    const venc = new VideoEncoder({ output: (c, m) => muxer.addVideoChunk(c, m), error: e => { window.__err = 'video: ' + (e.message || e); } });
+    venc.configure({ codec: vcodec, width: W, height: H, bitrate: 7_000_000, framerate: FPS, avc: { format: 'avc' } });
+    const aenc = new AudioEncoder({ output: (c, m) => muxer.addAudioChunk(c, m), error: e => { window.__err = 'audio: ' + (e.message || e); } });
+    aenc.configure({ codec: 'mp4a.40.2', sampleRate: SR, numberOfChannels: 2, bitrate: 160000 });
+    const L = music.getChannelData(0), R = music.getChannelData(1), totalA = Math.round(DUR * SR); let aPtr = 0;
+    const total = Math.round(DUR * FPS), t0 = performance.now();
+    for (let i = 0; i < total; i++) {
+      if (window.__err) throw new Error(window.__err);
+      draw(i / FPS);
+      const f = new VideoFrame(cv, { timestamp: Math.round(i * 1e6 / FPS), duration: Math.round(1e6 / FPS) }); venc.encode(f, { keyFrame: i % FPS === 0 }); f.close();
+      const end = Math.min(totalA, Math.round((i + 1) / FPS * SR));
+      while (aPtr < end) { const n = Math.min(4800, end - aPtr), data = new Float32Array(n * 2); data.set(L.subarray(aPtr, aPtr + n), 0); data.set(R.subarray(aPtr, aPtr + n), n);
+        const ad = new AudioData({ format: 'f32-planar', sampleRate: SR, numberOfFrames: n, numberOfChannels: 2, timestamp: Math.round(aPtr / SR * 1e6), data }); aenc.encode(ad); ad.close(); aPtr += n; }
+      while (venc.encodeQueueSize > 6) await new Promise(r => setTimeout(r, 4));
+      if (i % 10 === 0) { log(`encoding ${i}/${total}  ${((performance.now() - t0) / 1000).toFixed(0)}s`); await new Promise(r => setTimeout(r, 0)); }
+    }
+    await venc.flush(); await aenc.flush(); muxer.finalize();
+    window.__buf = muxer.target.buffer; log(`encoded ${(window.__buf.byteLength / 1048576).toFixed(1)} MB`); window.__done = true;
+  } catch (e) { window.__err = String(e.message || e); log('ERROR ' + window.__err); }
+};
+window.saveToDesktop = async function (name) { const r = await fetch('/save?name=' + encodeURIComponent(name), { method: 'POST', body: window.__buf }); return r.status + ' ' + await r.text(); };
+
+(async function () {
+  try {
+    await Promise.all([400, 500, 600, 700, 800, 900].map(w => document.fonts.load(`${w} 40px Heebo`, 'אבגדהוזחטיכלמנסעפצקרשת0123456789')));
+    const [hero, logo, site, header] = await Promise.all([loadImg('hero-land.jpg'), loadImg('logo-light-hd.png'), loadImg('site-mobile.png'), loadImg('site-header.png')]);
+    Object.assign(IM, { hero, logo, site, header });
+    const q = new URLSearchParams(location.search); draw(q.has('t') ? parseFloat(q.get('t')) : 0); log(q.has('t') ? 'frame ' + q.get('t') : 'ready'); window.__ready = true;
+  } catch (e) { log('BOOT ERROR ' + e.message); window.__err = e.message; }
+})();
+</script>
+</body>
+</html>

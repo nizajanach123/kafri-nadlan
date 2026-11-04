@@ -1,0 +1,282 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+<meta charset="utf-8">
+<title>Kafri Nadlan – promo video</title>
+<link href="https://fonts.googleapis.com/css2?family=Heebo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body { margin: 0; background: #0b0f1a; }
+  #stage { display: block; margin: 0 auto; height: 100vh; width: auto; aspect-ratio: 9 / 16; }
+  #log { position: fixed; top: 6px; left: 6px; font: 12px monospace; color: #9f9; direction: ltr; }
+</style>
+</head>
+<body>
+<canvas id="stage" width="1080" height="1920"></canvas>
+<div id="log"></div>
+<script src="https://cdn.jsdelivr.net/npm/mp4-muxer@5.1.3/build/mp4-muxer.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/webm-muxer@5.0.3/build/webm-muxer.js"></script>
+<script>
+/* 9:16 promo for Kafri Nadlan: five scenes drawn on a canvas, encoded to MP4 with WebCodecs.
+   Texts come from the site itself; no returns, valuations or other claims are added. */
+const W = 1080, H = 1920, FPS = 30, DUR = 31;
+const cv = document.getElementById('stage'), ctx = cv.getContext('2d');
+const logEl = document.getElementById('log');
+const log = m => { logEl.textContent = m; window.__log = m; };
+
+const C = {
+  navyDeep: 'oklch(0.2 0.06 258)', navy: 'oklch(0.3 0.08 258)', gold: 'oklch(0.72 0.11 78)',
+  cream: 'oklch(0.985 0.004 85)', beige: 'oklch(0.95 0.012 85)', card: 'oklch(0.995 0.002 85)',
+  ink: 'oklch(0.22 0.05 258)', inkSoft: 'oklch(0.22 0.05 258 / 0.7)', border: 'oklch(0.88 0.015 85)',
+  green: 'oklch(0.62 0.17 150)', red: 'oklch(0.58 0.2 27)'
+};
+const F = (w, s) => `${w} ${s}px Heebo`;
+
+/* easing: same curve the site uses, cubic-bezier(.22,1,.36,1) */
+function bez(x1, y1, x2, y2) {
+  return t => {
+    if (t <= 0) return 0; if (t >= 1) return 1;
+    let lo = 0, hi = 1, m;
+    for (let i = 0; i < 24; i++) { m = (lo + hi) / 2; const x = 3*(1-m)*(1-m)*m*x1 + 3*(1-m)*m*m*x2 + m*m*m; if (x < t) lo = m; else hi = m; }
+    m = (lo + hi) / 2; return 3*(1-m)*(1-m)*m*y1 + 3*(1-m)*m*m*y2 + m*m*m;
+  };
+}
+const easeOut = bez(.22, 1, .36, 1), easeIO = bez(.65, 0, .35, 1);
+const P = (t, s, d) => Math.min(1, Math.max(0, (t - s) / d));
+
+const IM = {};
+const loadImg = src => new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = () => rej(new Error('image failed: ' + src)); i.src = src; });
+
+let SA = 1;                                  // alpha of the scene being drawn
+const A = (a = 1) => { ctx.globalAlpha = Math.max(0, Math.min(1, SA * a)); };
+function text(s, x, y, font, color, align = 'center', a = 1, dir = 'rtl') {
+  ctx.font = font; ctx.fillStyle = color; ctx.textAlign = align; ctx.direction = dir; ctx.textBaseline = 'alphabetic'; A(a); ctx.fillText(s, x, y);
+}
+function wrap(s, font, maxW) {
+  ctx.font = font; ctx.direction = 'rtl';
+  const words = s.split(' '), lines = []; let cur = '';
+  for (const w of words) { const test = cur ? cur + ' ' + w : w; if (ctx.measureText(test).width > maxW && cur) { lines.push(cur); cur = w; } else cur = test; }
+  if (cur) lines.push(cur); return lines;
+}
+const rr = (x, y, w, h, r) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); };
+function disc(x, y, r, color, a = 1) { A(a); ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2); ctx.fill(); }
+function cross(x, y, r, color, a = 1) { A(a); ctx.strokeStyle = color; ctx.lineWidth = 6; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(x - r, y - r); ctx.lineTo(x + r, y + r); ctx.moveTo(x + r, y - r); ctx.lineTo(x - r, y + r); ctx.stroke(); }
+function tick(x, y, r, color, a = 1) { A(a); ctx.strokeStyle = color; ctx.lineWidth = 7; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.beginPath(); ctx.moveTo(x - r, y + 1); ctx.lineTo(x - r * .3, y + r * .75); ctx.lineTo(x + r, y - r * .7); ctx.stroke(); }
+function cover(img, scale, ox, oy) { const r = Math.max(W / img.width, H / img.height) * scale; const w = img.width * r, h = img.height * r; ctx.drawImage(img, (W - w) / 2 + ox, (H - h) / 2 + oy, w, h); }
+function shadow(on) { if (on) { ctx.shadowColor = 'rgba(0,0,0,.32)'; ctx.shadowBlur = 44; ctx.shadowOffsetY = 18; } else { ctx.shadowColor = 'transparent'; ctx.shadowBlur = 0; ctx.shadowOffsetY = 0; } }
+const sceneAlpha = (t, s) => easeOut(P(t, s, .5));
+
+/* ---------- 1. hero: logo and the headline, word by word ---------- */
+function scene1(t) {
+  SA = 1; ctx.save();
+  const k = P(t, 0, 5.4);
+  A(1); cover(IM.hero, 1.14 - 0.07 * k, -50 * k, 0);
+  const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, 'oklch(0.2 0.06 258 / 0.55)'); g.addColorStop(1, 'oklch(0.2 0.06 258 / 0.94)');
+  A(1); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+
+  const e = easeOut(P(t, 0.2, 0.9)), lw = 720, lh = lw * IM.logo.height / IM.logo.width;
+  ctx.save(); ctx.translate(W / 2, 520); const sc = 0.8 + 0.2 * e; ctx.scale(sc, sc);
+  ctx.filter = `blur(${(1 - e) * 14}px)`; A(e); ctx.drawImage(IM.logo, -lw / 2, -lh / 2, lw, lh); ctx.restore(); ctx.filter = 'none';
+
+  const le = easeOut(P(t, 1.0, 0.7)); A(1); ctx.fillStyle = C.gold; ctx.fillRect(W / 2 + 70, 958, -140 * le, 4);
+
+  const lines = [['השקעה', 'שנבדקה'], ['בשבע', 'עיניים']], font = F(800, 118), gap = 34; let idx = 0;
+  lines.forEach((ws, li) => {
+    ctx.font = font; ctx.direction = 'rtl';
+    const widths = ws.map(w => ctx.measureText(w).width), total = widths.reduce((a, b) => a + b, 0) + gap * (ws.length - 1);
+    let xr = W / 2 + total / 2; const base = 1100 + li * 138;
+    ws.forEach((w, wi) => {
+      const e2 = easeOut(P(t, 1.5 + idx * 0.14, 0.55)); idx++;
+      ctx.save(); ctx.translate(xr - widths[wi] / 2, base); ctx.translate(0, (1 - e2) * 40); ctx.scale(1, 0.25 + 0.75 * e2);
+      text(w, 0, 0, font, C.cream, 'center', e2); ctx.restore(); xr -= widths[wi] + gap;
+    });
+  });
+  const se = easeOut(P(t, 3.3, 0.7)); text('מתוך אחריות לעתיד שלכם.', W / 2, 1420 + (1 - se) * 24, F(600, 56), C.gold, 'center', se);
+  const te = easeOut(P(t, 4.1, 0.6)); text('תמ"א 70 · מטרו סגולה · פתח תקווה', W / 2, 1560, F(500, 40), C.cream, 'center', 0.85 * te);
+  ctx.restore();
+}
+
+/* ---------- 2. transparency: three risks, three answers ---------- */
+const CARDS = [
+  { n: '01', title: 'הסכנה בשטח קטן', risk: 'רכישת "פירורים" של 40 מ"ר עלולה להימחק בטבלאות האיזון.', ans: 'אנו משווקים יחידות של 80 מ"ר לפחות.' },
+  { n: '02', title: 'הסכנה בקרקע חקלאית פשוטה', risk: 'קרקע חקלאית רגילה עלולה להישאר כזו לעשרות שנים.', ans: 'חלקה 76 מסומנת ב-58% כ"אזור פיתוח" בתמ"א 70.' },
+  { n: '03', title: 'שמירת הממון', risk: 'כספים שמועברים ישירות ליזם חשופים לחובותיו.', ans: 'כספי הרוכשים מוגנים בנאמנות סגורה עד לרישום בטאבו.' }
+];
+function scene2(t) {
+  const s = 4.9; SA = sceneAlpha(t, s); if (SA <= 0) return; ctx.save();
+  A(1); ctx.fillStyle = C.navyDeep; ctx.fillRect(0, 0, W, H);
+  const rg = ctx.createRadialGradient(W / 2, 0, 80, W / 2, 0, 1500); rg.addColorStop(0, C.navy); rg.addColorStop(1, 'oklch(0.2 0.06 258 / 0)'); A(1); ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+  const e0 = easeOut(P(t, s + .2, .6)); text('שקיפות קודמת לכל', W / 2, 150, F(700, 40), C.gold, 'center', e0);
+  const e1 = easeOut(P(t, s + .35, .7)); text('למה פסלנו עסקאות אחרות?', W / 2, 250 + (1 - e1) * 24, F(800, 78), C.cream, 'center', e1);
+  CARDS.forEach((c, i) => {
+    const cs = 5.8 + 2.3 * i, e = easeOut(P(t, cs, .7)), y = 330 + i * 460 + (1 - e) * 70;
+    if (e <= 0) return;
+    A(e); shadow(true); ctx.fillStyle = C.card; rr(80, y, 920, 430, 40); ctx.fill(); shadow(false);
+    text(c.n, 952, y + 92, F(800, 64), C.gold, 'right', e);
+    text(c.title, 832, y + 90, F(800, 46), C.ink, 'right', e);
+    const er = easeOut(P(t, cs + .35, .5)), ea = easeOut(P(t, cs + 1.0, .5));
+    disc(924, y + 176, 28, 'oklch(0.58 0.2 27 / 0.13)', er); cross(924, y + 176, 11, C.red, er);
+    wrap(c.risk, F(500, 33), 750).forEach((l, k) => text(l, 882, y + 186 + k * 44, F(500, 33), C.inkSoft, 'right', er));
+    disc(924, y + 312, 28, 'oklch(0.62 0.17 150 / 0.15)', ea); tick(924, y + 312, 12, C.green, ea);
+    wrap(c.ans, F(700, 33), 750).forEach((l, k) => text(l, 882, y + 322 + k * 44, F(700, 33), C.ink, 'right', ea));
+  });
+  ctx.restore();
+}
+
+/* ---------- 3. the project: facts at a glance ---------- */
+function scene3(t) {
+  const s = 12.9; SA = sceneAlpha(t, s); if (SA <= 0) return; ctx.save();
+  A(1); ctx.fillStyle = C.beige; ctx.fillRect(0, 0, W, H);
+  const e0 = easeOut(P(t, s + .2, .6)); text('הפרויקט', W / 2, 190, F(700, 40), C.gold, 'center', e0);
+  const e1 = easeOut(P(t, s + .35, .7));
+  ['תמ"א 70 – מטרו סגולה,', 'פתח תקווה'].forEach((l, k) => text(l, W / 2, 290 + k * 86 + (1 - e1) * 24, F(800, 70), C.ink, 'center', e1));
+  const tiles = [['תוכנית', 'תמ"א 70 – מטרו סגולה'], ['מיקום', 'פתח תקווה'], ['גוש', '6350'], ['חלקה', '76'], ['אזור פיתוח', ''], ['יחידה מינימלית', '80 מ"ר']];
+  tiles.forEach(([label, value], i) => {
+    const e = easeOut(P(t, 13.5 + i * 0.16, .6)); if (e <= 0) return;
+    const x = i % 2 === 0 ? 560 : 80, y = 470 + Math.floor(i / 2) * 230 + (1 - e) * 40;
+    A(e); shadow(true); ctx.fillStyle = C.card; rr(x, y, 440, 200, 30); ctx.fill(); shadow(false);
+    text(label, x + 404, y + 62, F(500, 30), C.inkSoft, 'right', e);
+    if (i === 4) {
+      const ce = easeOut(P(t, 15.0, 1.4)), n = Math.round(58 * ce);
+      text(`${n}%`, x + 404, y + 132, F(800, 62), C.ink, 'right', e);
+      text('מהחלקה', x + 404 - ctx.measureText(`58%`).width - 20, y + 130, F(500, 30), C.inkSoft, 'right', e);
+      A(e); ctx.fillStyle = C.border; rr(x + 36, y + 160, 368, 12, 6); ctx.fill();
+      const bw = 368 * 0.58 * ce; if (bw > 1) { const gg = ctx.createLinearGradient(x + 404, 0, x + 404 - bw, 0); gg.addColorStop(0, C.gold); gg.addColorStop(1, 'oklch(0.8 0.1 85)'); ctx.fillStyle = gg; rr(x + 404 - bw, y + 160, bw, 12, 6); ctx.fill(); }
+    } else {
+      const font = value.length > 14 ? F(800, 42) : F(800, 50);
+      wrap(value, font, 368).forEach((l, k) => text(l, x + 404, y + 128 + k * 52, font, C.ink, 'right', e));
+    }
+  });
+  const le = easeOut(P(t, 16.6, .7));
+  if (le > 0) {
+    const y = 1200 + (1 - le) * 40; A(le); shadow(true); ctx.fillStyle = C.navy; rr(80, y, 920, 230, 40); ctx.fill(); shadow(false);
+    disc(910, y + 115, 56, 'oklch(0.72 0.11 78 / 0.2)', le);
+    A(le); ctx.strokeStyle = C.gold; ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.lineCap = 'round'; rr(886, y + 84, 48, 54, 12); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(886, y + 106); ctx.lineTo(934, y + 106); ctx.moveTo(900, y + 152); ctx.lineTo(894, y + 164); ctx.moveTo(920, y + 152); ctx.lineTo(926, y + 164); ctx.stroke();
+    ctx.fillStyle = C.gold; ctx.beginPath(); ctx.arc(900, y + 124, 3.5, 0, 7); ctx.arc(920, y + 124, 3.5, 0, 7); ctx.fill();
+    text('תחנת סגולה', 830, y + 92, F(700, 32), C.gold, 'right', le);
+    wrap('בסמוך לתחנת הרכבת ולתחנת המטרו העתידית של קו M2', F(600, 38), 660).forEach((l, k) => text(l, 830, y + 146 + k * 50, F(600, 38), C.cream, 'right', le));
+  }
+  const ne = easeOut(P(t, 17.4, .7));
+  wrap('הקרקע מסווגת כיום כקרקע חקלאית, וערכה העתידי תלוי בהליכי תכנון ואישור.', F(400, 31), 880).forEach((l, k) => text(l, W / 2, 1530 + k * 44, F(400, 31), C.inkSoft, 'center', ne));
+  const we = easeOut(P(t, 18.1, .6)); text('כפרי נדל"ן', W / 2, 1790, F(700, 42), C.navy, 'center', 0.9 * we);
+  ctx.restore();
+}
+
+/* ---------- 4. the website, scrolling inside a phone ---------- */
+const STOPS = [0, 920, 2050, 2750, 5300];             // css px of the page, from the real mobile screenshot
+function pageScroll(tt) {
+  const hold = 1.05, mv = 0.6; let c = 0.3;
+  for (let i = 0; i < STOPS.length - 1; i++) {
+    c += hold; if (tt < c) return STOPS[i];
+    if (tt < c + mv) return STOPS[i] + (STOPS[i + 1] - STOPS[i]) * easeIO((tt - c) / mv);
+    c += mv;
+  }
+  return STOPS[STOPS.length - 1];
+}
+function scene4(t) {
+  const s = 19.5; SA = sceneAlpha(t, s); if (SA <= 0) return; ctx.save();
+  A(1); ctx.fillStyle = C.navyDeep; ctx.fillRect(0, 0, W, H);
+  const rg = ctx.createRadialGradient(W / 2, 900, 100, W / 2, 900, 1300); rg.addColorStop(0, C.navy); rg.addColorStop(1, 'oklch(0.2 0.06 258 / 0)'); A(1); ctx.fillStyle = rg; ctx.fillRect(0, 0, W, H);
+  const e1 = easeOut(P(t, s + .2, .7)); text('האתר שלנו', W / 2, 190 + (1 - e1) * 24, F(800, 84), C.cream, 'center', e1);
+  text('כל המידע, בשקיפות מלאה', W / 2, 270 + (1 - e1) * 24, F(500, 44), C.gold, 'center', e1);
+  const e = easeOut(P(t, s + .35, .8)), px = 230, py = 340 + (1 - e) * 90, pw = 620, ph = 1270;
+  A(e); shadow(true); ctx.fillStyle = 'oklch(0.13 0.03 258)'; rr(px, py, pw, ph, 78); ctx.fill(); shadow(false);
+  A(e * .6); ctx.strokeStyle = C.gold; ctx.lineWidth = 3; rr(px + 1.5, py + 1.5, pw - 3, ph - 3, 76); ctx.stroke();
+  const sx = px + 16, sy = py + 16, sw = pw - 32, sh = ph - 32, k = sw / 750, srcH = sh / k;
+  ctx.save(); rr(sx, sy, sw, sh, 62); ctx.clip(); A(e); ctx.fillStyle = C.cream; ctx.fillRect(sx, sy, sw, sh);
+  const maxY = IM.site.height - srcH, srcY = Math.min(maxY, pageScroll(t - s) * 2);
+  A(e); ctx.drawImage(IM.site, 0, srcY, 750, srcH, sx, sy, sw, sh);
+  A(e); ctx.drawImage(IM.header, 0, 0, 750, 138, sx, sy, sw, 138 * k);        // sticky header, as on the real site
+  ctx.restore();
+  const ce = easeOut(P(t, s + 1.0, .7)); text('פרטי העסקה, שקיפות ויצירת קשר', W / 2, 1720, F(600, 44), C.cream, 'center', 0.9 * ce);
+  text('הכל במקום אחד', W / 2, 1790, F(500, 38), C.gold, 'center', ce);
+  ctx.restore();
+}
+
+/* ---------- 5. call to action ---------- */
+function scene5(t) {
+  const s = 26.3; SA = sceneAlpha(t, s); if (SA <= 0) return; ctx.save();
+  const g = ctx.createLinearGradient(0, 0, 0, H); g.addColorStop(0, C.navyDeep); g.addColorStop(1, C.navy); A(1); ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+  const e0 = easeOut(P(t, s + .2, .8)), lw = 420, lh = lw * IM.logo.height / IM.logo.width;
+  ctx.save(); ctx.translate(W / 2, 360); const sc = 0.85 + 0.15 * e0; ctx.scale(sc, sc); ctx.filter = `blur(${(1 - e0) * 10}px)`; A(e0); ctx.drawImage(IM.logo, -lw / 2, -lh / 2, lw, lh); ctx.restore(); ctx.filter = 'none';
+  const e1 = easeOut(P(t, s + .5, .7)); text('לפגישת ייעוץ אישית', W / 2, 760 + (1 - e1) * 28, F(800, 92), C.cream, 'center', e1);
+  const e2 = easeOut(P(t, s + .8, .7)); text('השקיעו בראש שקט', W / 2, 850 + (1 - e2) * 28, F(600, 56), C.gold, 'center', e2);
+  [['אלעזר כפרי', '054-265-3666'], ['שלומי כפרי', '050-444-6184']].forEach(([name, num], i) => {
+    const e = easeOut(P(t, s + 1.2 + i * 0.35, .7)); if (e <= 0) return;
+    const y = 990 + i * 200 + (1 - e) * 40;
+    A(e); ctx.fillStyle = 'oklch(0.98 0.005 85 / 0.06)'; rr(80, y, 920, 160, 80); ctx.fill();
+    A(e); ctx.strokeStyle = 'oklch(0.72 0.11 78 / 0.55)'; ctx.lineWidth = 3; rr(80, y, 920, 160, 80); ctx.stroke();
+    disc(918, y + 80, 52, 'oklch(0.72 0.11 78 / 0.2)', e);
+    A(e); ctx.strokeStyle = C.gold; ctx.lineWidth = 5; ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.beginPath(); ctx.moveTo(903, y + 64); ctx.quadraticCurveTo(900, y + 98, 934, y + 98); ctx.lineTo(938, y + 86); ctx.lineTo(926, y + 80); ctx.lineTo(920, y + 88); ctx.quadraticCurveTo(910, y + 82, 906, y + 72); ctx.lineTo(914, y + 66); ctx.lineTo(908, y + 54); ctx.closePath(); ctx.stroke();
+    text(name, 840, y + 96, F(700, 48), C.cream, 'right', e);
+    text(num, 130, y + 98, F(800, 56), C.gold, 'left', e, 'ltr');
+  });
+  const e3 = easeOut(P(t, s + 2.4, .7)); text('אפשר גם להשאיר פרטים באתר', W / 2, 1480, F(500, 42), C.cream, 'center', 0.85 * e3);
+  text('פתח תקווה · תמ"א 70 · מטרו סגולה', W / 2, 1560, F(500, 38), C.gold, 'center', e3);
+  ctx.restore();
+}
+
+function draw(t) {
+  ctx.setTransform(1, 0, 0, 1, 0, 0); ctx.globalAlpha = 1; ctx.filter = 'none'; shadow(false);
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, W, H);
+  scene1(t);
+  if (t >= 4.9) scene2(t);
+  if (t >= 12.9) scene3(t);
+  if (t >= 19.5) scene4(t);
+  if (t >= 26.3) scene5(t);
+  if (t > DUR - 0.5) { ctx.globalAlpha = Math.min(1, (t - (DUR - 0.5)) / 0.5); ctx.fillStyle = C.navyDeep; ctx.fillRect(0, 0, W, H); ctx.globalAlpha = 1; }
+}
+
+/* ---------- encoding ---------- */
+async function pickCodec() {
+  if (!window.VideoEncoder) return null;
+  for (const codec of ['avc1.640029', 'avc1.4d0029', 'avc1.42001f']) {
+    try { const r = await VideoEncoder.isConfigSupported({ codec, width: W, height: H, bitrate: 7e6, framerate: FPS, avc: { format: 'avc' } }); if (r.supported) return { kind: 'mp4', codec }; } catch (e) {}
+  }
+  try { const r = await VideoEncoder.isConfigSupported({ codec: 'vp09.00.40.08', width: W, height: H, bitrate: 7e6, framerate: FPS }); if (r.supported) return { kind: 'webm', codec: 'vp09.00.40.08' }; } catch (e) {}
+  return null;
+}
+window.startRender = async function () {
+  window.__done = false; window.__err = null;
+  try {
+    const pick = await pickCodec(); if (!pick) throw new Error('no supported video encoder');
+    let muxer;
+    if (pick.kind === 'mp4') muxer = new Mp4Muxer.Muxer({ target: new Mp4Muxer.ArrayBufferTarget(), video: { codec: 'avc', width: W, height: H }, fastStart: 'in-memory' });
+    else muxer = new WebMMuxer({ target: new WebMMuxer.ArrayBufferTarget(), video: { codec: 'V_VP9', width: W, height: H, frameRate: FPS } });
+    const enc = new VideoEncoder({ output: (c, m) => muxer.addVideoChunk(c, m), error: e => { window.__err = String(e.message || e); } });
+    enc.configure({ codec: pick.codec, width: W, height: H, bitrate: 7_000_000, framerate: FPS, ...(pick.kind === 'mp4' ? { avc: { format: 'avc' } } : {}) });
+    const total = DUR * FPS, t0 = performance.now();
+    for (let i = 0; i < total; i++) {
+      if (window.__err) throw new Error(window.__err);
+      draw(i / FPS);
+      const f = new VideoFrame(cv, { timestamp: Math.round(i * 1e6 / FPS), duration: Math.round(1e6 / FPS) });
+      enc.encode(f, { keyFrame: i % FPS === 0 }); f.close();
+      while (enc.encodeQueueSize > 6) await new Promise(r => setTimeout(r, 4));
+      if (i % 10 === 0) { log(`encoding ${i}/${total}  ${((performance.now() - t0) / 1000).toFixed(0)}s  (${pick.kind} ${pick.codec})`); await new Promise(r => setTimeout(r, 0)); }
+    }
+    await enc.flush(); muxer.finalize();
+    window.__buf = muxer.target.buffer; window.__kind = pick.kind;
+    log(`encoded ${(window.__buf.byteLength / 1048576).toFixed(1)} MB as ${pick.kind}`); window.__done = true;
+  } catch (e) { window.__err = String(e.message || e); log('ERROR ' + window.__err); }
+};
+window.saveToDesktop = async function (name) {
+  const r = await fetch('/save?name=' + encodeURIComponent(name), { method: 'POST', body: window.__buf });
+  return r.status + ' ' + await r.text();
+};
+
+/* ---------- boot ---------- */
+(async function () {
+  try {
+    await Promise.all([400, 500, 600, 700, 800].map(w => document.fonts.load(`${w} 40px Heebo`, 'אבגדהוזחטיכלמנסעפצקרשת0123456789')));
+    const [hero, logo, site, header] = await Promise.all([loadImg('hero-land.jpg'), loadImg('logo-light-hd.png'), loadImg('site-mobile.png'), loadImg('site-header.png')]);
+    Object.assign(IM, { hero, logo, site, header });
+    const q = new URLSearchParams(location.search);
+    if (q.has('t')) { draw(parseFloat(q.get('t'))); log('frame ' + q.get('t')); }
+    else { draw(0); log('ready'); }
+    window.__ready = true;
+  } catch (e) { log('BOOT ERROR ' + e.message); window.__err = e.message; }
+})();
+</script>
+</body>
+</html>

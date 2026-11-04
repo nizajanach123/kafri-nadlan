@@ -1,0 +1,37 @@
+<script>
+  // Projects: a link like #/name opens the matching .pview (id="view-name"); any other link shows the main page.
+  (function () {
+    const home = document.getElementById('home');
+    const views = Array.prototype.slice.call(document.querySelectorAll('.pview'));
+    if (!home) return;
+    const baseTitle = document.title;
+    const hero = document.querySelector('.hero');
+    const bg = hero ? getComputedStyle(hero).backgroundImage : 'none';
+    document.querySelectorAll('.pimg i[data-from-hero]').forEach(function (i) { if (bg && bg !== 'none') i.style.backgroundImage = bg; });
+    const logoImg = hero && hero.querySelector('.hero-logo img');
+    if (logoImg) document.querySelectorAll('.pimg.soon').forEach(function (w) {
+      const im = new Image(); im.alt = ''; im.src = logoImg.src; w.appendChild(im);
+    });
+    let inProject = false;
+    function route() {
+      const m = location.hash.match(/^#\/([\w-]+)$/);
+      const view = m && document.getElementById('view-' + m[1]);
+      home.hidden = !!view;
+      views.forEach(function (v) { v.hidden = v !== view; });
+      if (view) {
+        const h = view.querySelector('h2');
+        document.title = (h ? h.textContent + ' | ' : '') + baseTitle;
+        window.scrollTo({ top: 0, behavior: 'instant' });
+      } else {
+        document.title = baseTitle;
+        if (inProject) {
+          const t = document.getElementById(location.hash.slice(1));
+          if (t) t.scrollIntoView({ behavior: 'instant' }); else window.scrollTo({ top: 0, behavior: 'instant' });
+        }
+      }
+      inProject = !!view;
+    }
+    window.addEventListener('hashchange', route);
+    route();
+  })();
+</script>

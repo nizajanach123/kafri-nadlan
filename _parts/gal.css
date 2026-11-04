@@ -1,0 +1,25 @@
+  /* Photo row (Petah Tikva): same height side by side, small caption under each, click to enlarge */
+  .pgal { display: flex; gap: 18px; max-width: 1000px; margin: 34px auto 0; align-items: flex-start; }
+  .pgal figure { flex: var(--ar, 1) 1 0; min-width: 0; margin: 0; }
+  .pgal-btn { display: block; width: 100%; padding: 0; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; cursor: zoom-in;
+    background: var(--card); box-shadow: var(--shadow); line-height: 0; }
+  .pgal-btn img { display: block; width: 100%; height: auto; transition: transform .8s cubic-bezier(.22, 1, .36, 1); }
+  .pgal figcaption { margin-top: 10px; text-align: center; font-size: .88rem; color: var(--ink-soft); line-height: 1.45; }
+  .pgal figure.reveal.in .pgal-btn { transition: transform .4s cubic-bezier(.22, 1, .36, 1), box-shadow .35s ease, border-color .35s ease; }
+  @media (hover: hover) {
+    .pgal figure.reveal.in:hover .pgal-btn { transform: translateY(-4px); border-color: oklch(0.72 0.11 78 / 0.75); box-shadow: 0 18px 38px -16px oklch(0.2 0.06 258 / 0.35); }
+    .pgal figure:hover .pgal-btn img { transform: scale(1.04); }
+  }
+  .pgal-btn:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+  @media (prefers-reduced-motion: reduce) { .pgal figure.reveal.in:hover .pgal-btn, .pgal figure:hover .pgal-btn img { transform: none; } }
+  @media (max-width: 900px) {
+    .pgal { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .pgal figure { flex: none; }
+    .pgal .pgal-wide { grid-column: 1 / -1; order: -1; }
+  }
+  .lb { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; align-content: center; gap: 12px; padding: 20px;
+    background: oklch(0.2 0.06 258 / 0.94); cursor: zoom-out; animation: lbIn .3s ease both; }
+  .lb img { max-width: min(96vw, 1200px); max-height: 80vh; border-radius: 10px; box-shadow: 0 20px 60px rgba(0, 0, 0, .5); }
+  .lb p { color: var(--cream); text-align: center; font-size: 1rem; }
+  @keyframes lbIn { from { opacity: 0; } to { opacity: 1; } }
+  @media (prefers-reduced-motion: reduce) { .lb { animation: none; } }
