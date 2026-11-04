@@ -755,8 +755,7 @@
       <h2 class="title reveal">תיאום פגישת ייעוץ אישית</h2>
       <div class="divider reveal"></div>
       <p class="lead">כדי להגן על הקהילה, אנחנו מוודאים מראש שההשקעה מתאימה לכם.</p>
-      <form id="lead-form" class="reveal" name="lead" method="POST" action="/" data-netlify="true" data-netlify-honeypot="website" novalidate>
-        <input type="hidden" name="form-name" value="lead">
+      <form id="lead-form" class="reveal" novalidate>
         <div class="field"><label for="name">שם מלא *</label><input id="name" name="name" type="text" autocomplete="name" required><div class="err">נא למלא שם מלא</div></div>
         <div class="field"><label for="phone">טלפון *</label><input id="phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required pattern="0[0-9\-\s]{8,11}"><div class="err">נא למלא מספר טלפון תקין</div></div>
         <div class="field"><label for="email">דוא"ל *</label><input id="email" name="email" type="email" autocomplete="email" required><div class="err">נא למלא כתובת דוא"ל תקינה</div></div>
@@ -1812,7 +1811,7 @@ if (root) ReactDOM.createRoot(root).render(<KafriNav />)
     }
   })();
 
-  // Form validation; every submission is stored and emailed by Netlify Forms
+  // Form validation; every submission is emailed through Web3Forms
   const form = document.getElementById('lead-form');
   const msg = document.getElementById('form-msg');
   // mark a field invalid/valid; an invalid one shakes once (restarted on every failed submit)
@@ -1860,21 +1859,21 @@ if (root) ReactDOM.createRoot(root).render(<KafriNav />)
 
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), 15000);
-    const data = new URLSearchParams({
-      'form-name': 'lead',
-      'name': document.getElementById('name').value.trim(),
-      'phone': document.getElementById('phone').value.trim(),
-      'email': document.getElementById('email').value.trim(),
-      'equity': qualified ? 'כן - הון עצמי של 390,000 ש"ח ומעלה' : 'לא',
-      'website': ''
-    });
-    fetch('/', {
+    fetch('https://api.web3forms.com/submit', {
       signal: ctrl.signal,
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: data.toString()
+      headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+      body: JSON.stringify({
+        access_key: 'a92ea0ce-382a-41fe-947a-e6b8d09afe20',
+        subject: 'פנייה חדשה מאתר כפרי נדל"ן – תיאום פגישת ייעוץ',
+        from_name: 'אתר כפרי נדל"ן',
+        'שם מלא': document.getElementById('name').value.trim(),
+        'טלפון': document.getElementById('phone').value.trim(),
+        'email': document.getElementById('email').value.trim(),
+        'הון עצמי פנוי של 390,000 ש"ח ומעלה': qualified ? 'כן' : 'לא'
+      })
     })
-      .then(res => ({ ok: res.ok }))
+      .then(res => res.json().then(data => ({ ok: res.ok && data.success === true })))
       .then(({ ok }) => {
         if (!ok) throw new Error('send failed');
         done();
