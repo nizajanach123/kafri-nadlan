@@ -192,7 +192,7 @@ function s6b(u) {   // CTA: navy
   const e0 = easeOut(P(u, 0.1, 0.8)), lw = 400, lh = lw * IM.logo.height / IM.logo.width;
   ctx.save(); ctx.translate(W / 2, 330); const sc = 0.82 + 0.18 * e0; ctx.scale(sc, sc); ctx.filter = `blur(${(1 - e0) * 10}px)`; A(e0); ctx.drawImage(IM.logo, -lw / 2, -lh / 2, lw, lh); ctx.restore(); ctx.filter = 'none';
   words([['לפגישת', 'ייעוץ'], ['אישית']], W / 2, 700, 130, 112, (w) => w === 'אישית' ? C.gold : C.cream, u, 0.6, 0.6);
-  [['אלעזר כפרי', '054-265-3666'], ['שלומי כפרי', '050-444-6184']].forEach(([name, num], i) => {
+  [['אלעזר כפרי', '054-265-3666'], ['אלישיב כפרי', '050-444-6184']].forEach(([name, num], i) => {
     const pa = popAnim(u, 1.8 + i * 0.6, 0.5); if (!pa) return;
     const y = 1010 + i * 190; ctx.save(); ctx.translate(W / 2, y + 70); ctx.scale(pa.s, pa.s); ctx.translate(-W / 2, -(y + 70));
     A(pa.a); ctx.fillStyle = 'oklch(0.98 0.005 85 / 0.07)'; rr(90, y, 900, 140, 70); ctx.fill(); A(pa.a); ctx.strokeStyle = 'oklch(0.72 0.11 78 / 0.6)'; ctx.lineWidth = 3; rr(90, y, 900, 140, 70); ctx.stroke();
