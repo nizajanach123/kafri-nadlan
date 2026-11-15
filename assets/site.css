@@ -594,18 +594,35 @@
   @keyframes lbIn { from { opacity: 0; } to { opacity: 1; } }
   @media (prefers-reduced-motion: reduce) { .lb { animation: none; } }
   .pimg .credit { position: absolute; z-index: 2; bottom: 8px; left: 10px; font-size: .68rem; color: rgba(255,255,255,.8); text-shadow: 0 1px 3px rgba(0,0,0,.6); }
-/* ===== "מן העיתונות" on the project page: news items in the site's own card style ===== */
+/* ===== "אנחנו בתקשורת" on the project page: a staggered collage of press cards, in the site's own palette ===== */
 .press { margin-top: 56px; }
-.press-list { display: grid; gap: 18px; max-width: 860px; margin: 0 auto 8px; }
-.news { padding: 24px 28px; border-right: 4px solid var(--gold); }
-.news-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; font-size: .85rem; color: var(--ink-soft); margin-bottom: 10px; }
-.news-meta strong { color: var(--navy); font-weight: 700; }
-.news h3 { font-size: 1.25rem; line-height: 1.4; margin-bottom: 10px; }
-.news h3 a { color: var(--navy); transition: color .2s; }
-.news h3 a:hover { color: var(--gold); }
-.news p { color: var(--ink-soft); margin: 0 0 12px; line-height: 1.8; }
-.news-link { font-weight: 700; font-size: .92rem; color: var(--navy); }
-.news-link:hover { color: var(--gold); }
-.news h3 a:focus-visible, .news-link:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px; border-radius: 4px; }
+.media-wall { position: relative; display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; max-width: 1060px; margin: 0 auto; padding: 8px 18px 56px; align-items: start; }
+/* two thin gold rules behind the cards, a nod to the reference collage */
+.media-wall::before, .media-wall::after { content: ""; position: absolute; top: 0; bottom: 0; width: 3px; background: var(--gold); opacity: .55; border-radius: 3px; z-index: 0; }
+.media-wall::before { right: 33%; } .media-wall::after { left: 33%; }
+.media-card { position: relative; z-index: 1; display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 24px 24px 22px; transition: border-color .35s ease, box-shadow .35s ease; }
+.mc-2 { margin-top: 48px; }
+.mc-3 { margin-top: 20px; }
+.media-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-bottom: 14px; margin-bottom: 14px; border-bottom: 1px solid var(--border); }
+.media-src { font-weight: 800; font-size: 1.15rem; color: var(--navy); letter-spacing: .01em; }
+.media-head time { font-size: .82rem; color: var(--ink-soft); }
+.media-title { font-size: 1.18rem; line-height: 1.4; color: var(--ink); margin-bottom: 10px; }
+.media-excerpt { font-size: .95rem; line-height: 1.75; color: var(--ink-soft); margin: 0 0 18px; }
+.media-btn { margin-top: auto; align-self: flex-start; display: inline-flex; align-items: center; gap: 8px; background: var(--navy); color: var(--cream); font-weight: 700; font-size: .95rem; padding: 10px 18px; border-radius: 8px; transition: background .2s, color .2s, transform .2s; }
+/* the whole card is the link: the button's hit area is stretched over the card */
+.media-btn::after { content: ""; position: absolute; inset: 0; border-radius: var(--radius); }
+.media-card:focus-within { border-color: var(--gold); }
+.media-btn:focus-visible { outline: 3px solid var(--gold); outline-offset: 3px; }
+@media (hover: hover) {
+  .media-card:hover { border-color: oklch(0.72 0.11 78 / 0.75); box-shadow: 0 22px 44px -18px oklch(0.2 0.06 258 / 0.32), 0 0 0 1px oklch(0.72 0.11 78 / 0.35); }
+  .media-card:hover .media-btn { background: var(--gold); color: var(--navy-deep); }
+}
 .nf { padding: 90px 0; text-align: center; }
-@media (max-width: 600px) { .news { padding: 18px 18px; } .news h3 { font-size: 1.1rem; } }
+@media (max-width: 900px) {
+  .media-wall { grid-template-columns: 1fr; gap: 18px; padding: 4px 6px 36px; }
+  .media-wall::before { right: 22px; left: auto; } .media-wall::after { display: none; }
+  .mc-2, .mc-3 { margin-top: 0; }
+  .mc-1 { margin-inline-end: 16px; } .mc-2 { margin-inline-start: 16px; } .mc-3 { margin-inline-end: 16px; }
+}
+@media (max-width: 600px) { .media-card { padding: 20px 18px 18px; } .media-title { font-size: 1.08rem; } }
+@media (prefers-reduced-motion: reduce) { .media-card, .media-btn { transition: none; } }
