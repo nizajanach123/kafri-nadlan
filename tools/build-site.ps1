@@ -3,10 +3,9 @@
 
     powershell -NoProfile -ExecutionPolicy Bypass -File tools\build-site.ps1
 
-  Reads : src/css/site.css, src/js/site.js, assets/nav.js (compiled from src/js/nav.tsx), src/partials/*.html,
-          src/pages/*.html, src/articles/*.html (front matter + body)
-  Writes: index.html, rehovot/index.html, articles/**/index.html, 404.html, sitemap.xml, robots.txt,
-          _headers, assets/site.css, assets/site.js
+  Reads : src/css/site.css + src/css/extra.css, src/js/site.js, assets/nav.js (compiled from src/js/nav.tsx),
+          src/partials/*.html, src/pages/*.html
+  Writes: index.html, rehovot/index.html, 404.html, sitemap.xml, robots.txt, _headers, assets/site.css, assets/site.js
 
   Change $SiteUrl when the site gets its own domain, then rebuild.
 #>
@@ -25,8 +24,8 @@ function WriteFile($p, $text) {
   [IO.File]::WriteAllText($full, $text.Replace("`r`n", "`n"), $utf8)
 }
 function Hash($p) { $b = [IO.File]::ReadAllBytes((Join-Path $Root $p)); ([BitConverter]::ToString([Security.Cryptography.MD5]::Create().ComputeHash($b)) -replace '-', '').Substring(0, 8).ToLower() }
-function Esc($s)  { [Net.WebUtility]::HtmlEncode($s) }                       # for attribute / text values
-function J($s)    { '"' + ($s -replace '\\', '\\' -replace '"', '\"' -replace "`r?`n", ' ') + '"' }   # JSON string
+function Esc($s)  { [Net.WebUtility]::HtmlEncode($s) }
+function J($s)    { '"' + ($s -replace '\\', '\\' -replace '"', '\"' -replace "`r?`n", ' ') + '"' }
 function Strip($html) { ([regex]::Replace($html, '<[^>]+>', '') -replace '\s+', ' ').Trim() }
 
 # ---------- assets ----------
@@ -34,31 +33,12 @@ WriteFile 'assets/site.css' ((ReadFile 'src/css/site.css') + "`n" + (ReadFile 's
 WriteFile 'assets/site.js'  (ReadFile 'src/js/site.js')
 $cssV = Hash 'assets/site.css'; $jsV = Hash 'assets/site.js'; $navV = Hash 'assets/nav.js'
 
-# ---------- articles ----------
-$articles = @()
-foreach ($f in Get-ChildItem (Join-Path $Root 'src\articles') -Filter *.html) {
-  $raw = [IO.File]::ReadAllText($f.FullName, [Text.Encoding]::UTF8).Replace("`r`n", "`n")
-  $cut = $raw.IndexOf("`n---`n"); if ($cut -lt 0) { throw "no front matter end in $($f.Name)" }
-  $meta = @{}; foreach ($line in $raw.Substring(0, $cut).Split("`n")) { $i = $line.IndexOf(':'); if ($i -gt 0) { $meta[$line.Substring(0, $i).Trim()] = $line.Substring($i + 1).Trim() } }
-  $body = $raw.Substring($cut + 5).Trim()
-  $words = ((Strip $body) -split ' ').Count
-  $articles += [pscustomobject]@{ slug = $meta['slug']; title = $meta['title']; h1 = $meta['h1']; description = $meta['description']
-    date = $meta['date']; order = [int]$meta['order']; summary = $meta['summary']; body = $body; minutes = [Math]::Max(2, [int][Math]::Ceiling($words / 180.0)) }
-}
-$articles = @($articles | Sort-Object order)
-
-# ---------- partials ----------
-$footArticles = if ($articles.Count) {
-  '<nav class="foot-articles" aria-label="מאמרים מקצועיים"><span class="foot-label">מאמרים מקצועיים</span><ul>' +
-  (($articles | % { '<li><a href="/articles/' + $_.slug + '/">' + (Esc $_.title) + '</a></li>' }) -join '') +
-  '<li><a href="/articles/">לכל המאמרים</a></li></ul></nav>'
-} else { '' }
-$footer = (ReadFile 'src/partials/footer.html').Replace('{{FOOT_ARTICLES}}', $footArticles)
+$footer    = ReadFile 'src/partials/footer.html'
 $headerSrc = ReadFile 'src/partials/header.html'
 
 # ---------- page layout ----------
 function Page($o) {
-  # $o: path ('/' , '/rehovot/'), title, description, body, navActive, home (bool), schema (array of json strings), ogType, noindex
+  # $o: path, title, description, body, navActive, home (bool), schema (array of json strings), ogType, noindex
   $url = $SiteUrl + $o.path
   $base = if ($o.home) { '' } else { '/' }
   $header = $headerSrc
@@ -120,7 +100,7 @@ $footer
 "@
 }
 
-function Breadcrumb($items) {   # items: @(@('שם','/path/'),...)
+function Breadcrumb($items) {
   $i = 0; $els = ($items | % { $i++; '{"@type":"ListItem","position":' + $i + ',"name":' + (J $_[0]) + ',"item":' + (J ($SiteUrl + $_[1])) + '}' }) -join ','
   '{"@context":"https://schema.org","@type":"BreadcrumbList","itemListElement":[' + $els + ']}'
 }
@@ -145,12 +125,6 @@ WriteFile 'index.html' (Page @{
 
 # ---------- Rehovot project page ----------
 $rvBody = ReadFile 'src/pages/rehovot.html'
-$related = if ($articles.Count) {
-  '<section class="related reveal"><div class="container"><h2 class="rel-title">מאמרים שיעזרו לכם להבין את ההשקעה</h2><div class="rel-grid">' +
-  (($articles | Select-Object -First 3 | % { '<a class="rel-card" href="/articles/' + $_.slug + '/"><strong>' + (Esc $_.title) + '</strong><span>' + (Esc $_.summary) + '</span><em>לקריאת המאמר ←</em></a>' }) -join '') +
-  '</div></div></section>'
-} else { '' }
-$rvBody = $rvBody.Replace('{{RELATED}}', $related)
 WriteFile 'rehovot/index.html' (Page @{
   path = '/rehovot/'; home = $false; ogType = 'website'; navActive = 'projects'
   title = "קרקע להשקעה במזרח רחובות (גוש 3693, חלקה 17) | $Brand"
@@ -159,44 +133,16 @@ WriteFile 'rehovot/index.html' (Page @{
   schema = @($orgSchema, (Breadcrumb @(@('דף הבית', '/'), @('קרקע להשקעה במזרח רחובות', '/rehovot/'))), (FaqSchema $rvBody))
 })
 
-# ---------- articles ----------
-if ($articles.Count) {
-  $cards = ($articles | % { '<a class="rel-card" href="/articles/' + $_.slug + '/"><strong>' + (Esc $_.title) + '</strong><span>' + (Esc $_.summary) + '</span><em>לקריאת המאמר ←</em></a>' }) -join ''
-  $idx = '<section class="art-page"><div class="container"><nav class="crumbs" aria-label="פירורי לחם"><a href="/">דף הבית</a> <span aria-hidden="true">›</span> <span>מאמרים</span></nav><div class="art-head"><span class="eyebrow">מאמרים מקצועיים</span><h1 class="title">ידע שמסייע לקבל החלטה מושכלת בהשקעה בקרקע</h1><p class="lead">מדריכים קצרים וברורים על מושגי יסוד בהשקעות קרקע: זכויות, תכנון, שמאות והסכמים.</p></div><div class="rel-grid rel-grid-wide">' + $cards + '</div></div></section>'
-  WriteFile 'articles/index.html' (Page @{
-    path = '/articles/'; home = $false; ogType = 'website'; navActive = 'knowledge'
-    title = "מאמרים על השקעה בקרקע | $Brand"
-    description = 'מדריכים ומאמרים מקצועיים על השקעות קרקע בישראל: נסח טאבו, תקן 22, הסכם שיתוף, הליכי תכנון והפשרה, וסיכונים שחשוב להכיר.'
-    body = $idx
-    schema = @((Breadcrumb @(@('דף הבית', '/'), @('מאמרים', '/articles/'))))
-  })
-  foreach ($a in $articles) {
-    $others = $articles | ? { $_.slug -ne $a.slug } | Select-Object -First 3
-    $rel = if ($others) { '<section class="related"><h2 class="rel-title">מאמרים נוספים</h2><div class="rel-grid">' + (($others | % { '<a class="rel-card" href="/articles/' + $_.slug + '/"><strong>' + (Esc $_.title) + '</strong><span>' + (Esc $_.summary) + '</span><em>לקריאת המאמר ←</em></a>' }) -join '') + '</div></section>' } else { '' }
-    $dateHe = ([datetime]$a.date).ToString('d.M.yyyy')
-    $art = '<section class="art-page"><div class="container"><nav class="crumbs" aria-label="פירורי לחם"><a href="/">דף הבית</a> <span aria-hidden="true">›</span> <a href="/articles/">מאמרים</a> <span aria-hidden="true">›</span> <span>' + (Esc $a.title) + '</span></nav>' +
-      '<article class="art"><div class="art-head"><span class="eyebrow">מאמר</span><h1 class="title">' + (Esc $a.h1) + '</h1><p class="art-meta">עודכן: ' + $dateHe + ' · זמן קריאה: ' + $a.minutes + ' דקות</p></div><div class="art-body">' + $a.body + '</div>' +
-      '<aside class="art-cta"><h2>רוצים לבדוק יחד איתנו הזדמנות קונקרטית?</h2><p>אנחנו מציגים את התמונה המלאה לפני כל החלטה: זכויות, מצב תכנוני, עלויות וסיכונים.</p><div class="art-cta-btns"><a href="/rehovot/" class="btn btn-gold">לפרויקט במזרח רחובות</a><a href="/#contact" class="btn btn-navy">לתיאום פגישת ייעוץ</a></div></aside>' +
-      '<p class="art-disc">האמור במאמר הוא מידע כללי בלבד ואינו מהווה ייעוץ השקעות, ייעוץ משפטי, שמאי או מס. השקעה בקרקע כרוכה בסיכון, וערכה העתידי תלוי בהליכי תכנון ואישור. לפני כל החלטה מומלץ להיוועץ בגורמים מקצועיים.</p></article>' + $rel + '</div></section>'
-    $schema = '{"@context":"https://schema.org","@type":"Article","headline":' + (J $a.h1) + ',"description":' + (J $a.description) + ',"inLanguage":"he","datePublished":"' + $a.date + '","dateModified":"' + $a.date + '","mainEntityOfPage":"' + $SiteUrl + '/articles/' + $a.slug + '/","image":"' + $SiteUrl + '/assets/img/hero.jpg","author":{"@type":"Person","name":"אלעזר כפרי"},"publisher":{"@id":"' + $SiteUrl + '/#organization"}}'
-    WriteFile ("articles/$($a.slug)/index.html") (Page @{
-      path = "/articles/$($a.slug)/"; home = $false; ogType = 'article'; navActive = 'knowledge'
-      title = "$($a.title) | $Brand"; description = $a.description; body = $art
-      schema = @($orgSchema, $schema, (Breadcrumb @(@('דף הבית', '/'), @('מאמרים', '/articles/'), @($a.title, "/articles/$($a.slug)/"))))
-    })
-  }
-}
-
 # ---------- 404 ----------
 WriteFile '404.html' (Page @{
   path = '/404.html'; home = $false; ogType = 'website'; navActive = ''; noindex = $true
   title = "העמוד לא נמצא | $Brand"; description = 'העמוד שחיפשתם לא נמצא.'
-  body = '<section class="art-page"><div class="container"><div class="art-head"><span class="eyebrow">404</span><h1 class="title">העמוד שחיפשתם לא נמצא</h1><p class="lead">ייתכן שהכתובת השתנתה. אפשר לחזור לדף הבית או לעיין במאמרים.</p><p><a href="/" class="btn btn-navy">לדף הבית</a></p></div></div></section>'
+  body = '<section class="nf"><div class="container"><span class="eyebrow">404</span><h1 class="title">העמוד שחיפשתם לא נמצא</h1><p class="lead">ייתכן שהכתובת השתנתה. אפשר לחזור לדף הבית.</p><p style="text-align:center"><a href="/" class="btn btn-navy">לדף הבית</a></p></div></section>'
   schema = @()
 })
 
 # ---------- sitemap / robots / headers ----------
-$urls = @(@('/', '1.0'), @('/rehovot/', '0.9')); if ($articles.Count) { $urls += , @('/articles/', '0.7'); $articles | % { $urls += , @("/articles/$($_.slug)/", '0.6') } }
+$urls = @(@('/', '1.0'), @('/rehovot/', '0.9'))
 $sm = '<?xml version="1.0" encoding="UTF-8"?>' + "`n" + '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">' + "`n" +
   (($urls | % { "  <url><loc>$SiteUrl$($_[0])</loc><lastmod>$Today</lastmod><priority>$($_[1])</priority></url>" }) -join "`n") + "`n</urlset>`n"
 WriteFile 'sitemap.xml' $sm
@@ -208,4 +154,4 @@ WriteFile '_headers' @"
 /assets/*
   Cache-Control: public, max-age=86400
 "@
-"built: index, rehovot, $($articles.Count) articles, 404, sitemap, robots"
+"built: index, rehovot, 404, sitemap, robots"
