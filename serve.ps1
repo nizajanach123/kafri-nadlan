@@ -2,7 +2,7 @@
 # Also accepts POST /save?name=<file>.mp4|.webm and writes the body to the user's Desktop (used by promo.html to export the video).
 param([int]$Port = 5173)
 $root = $PSScriptRoot
-$types = @{ ".html" = "text/html; charset=utf-8"; ".js" = "text/javascript"; ".css" = "text/css"; ".jpg" = "image/jpeg"; ".jpeg" = "image/jpeg"; ".png" = "image/png"; ".svg" = "image/svg+xml"; ".tsx" = "text/plain; charset=utf-8"; ".mp4" = "video/mp4"; ".webm" = "video/webm" }
+$types = @{ ".html" = "text/html; charset=utf-8"; ".js" = "text/javascript"; ".css" = "text/css"; ".jpg" = "image/jpeg"; ".jpeg" = "image/jpeg"; ".png" = "image/png"; ".svg" = "image/svg+xml"; ".tsx" = "text/plain; charset=utf-8"; ".xml" = "application/xml"; ".txt" = "text/plain; charset=utf-8"; ".webp" = "image/webp"; ".mp4" = "video/mp4"; ".webm" = "video/webm" }
 $l = New-Object System.Net.HttpListener
 $l.Prefixes.Add("http://localhost:$Port/")
 $l.Start()
@@ -25,6 +25,7 @@ while ($l.IsListening) {
       $rel = [Uri]::UnescapeDataString($c.Request.Url.AbsolutePath).TrimStart("/")
       if (-not $rel) { $rel = "index.html" }
       $path = Join-Path $root $rel
+      if (Test-Path -LiteralPath $path -PathType Container) { $path = Join-Path $path "index.html" }   # /rehovot/ -> rehovot/index.html, like Netlify
       if ((Test-Path -LiteralPath $path -PathType Leaf) -and ((Resolve-Path -LiteralPath $path).Path.StartsWith($root))) {
         $bytes = [IO.File]::ReadAllBytes($path)
         $ext = [IO.Path]::GetExtension($path).ToLower()
