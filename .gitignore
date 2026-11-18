@@ -2,3 +2,8 @@
 index.backup-*.html
 Thumbs.db
 .DS_Store
+*.mp4
+*.webm
+site-mobile.png
+hero-screenshot-no-whatsapp.png
+promo3.html
