@@ -648,3 +648,15 @@
 }
 @media (max-width: 600px) { .clip { padding: 20px 18px 18px; } .clip-brand strong, .clip-ml .clip-brand strong, .clip-nz .clip-brand strong { font-size: 1.5rem; } .clip-title, .clip-ml .clip-title, .clip-yn .clip-title, .clip-nz .clip-title { font-size: 1.28rem; } }
 @media (prefers-reduced-motion: reduce) { .clip { transition: none; } .clip:hover { transform: none; } }
+/* ===== "אז איך זה עובד אצלנו?" : five numbered steps and a closing band, in the site's own cards ===== */
+#how { background: var(--card); }
+.steps { list-style: none; display: grid; grid-template-columns: repeat(5, 1fr); gap: 16px; margin: 42px 0 26px; }
+.step { padding: 22px 20px; }
+.step-num { display: block; font-size: 2.4rem; font-weight: 800; line-height: 1; color: var(--gold); margin-bottom: 12px; }
+.step h3 { font-size: 1.08rem; line-height: 1.35; color: var(--navy); margin-bottom: 8px; }
+.step p { font-size: .94rem; line-height: 1.7; color: var(--ink-soft); margin: 0; }
+.how-banner { background: var(--navy-deep); color: var(--cream); border-radius: var(--radius); padding: 22px 26px; text-align: center; font-size: 1.25rem; line-height: 1.6; }
+.how-banner p { margin: 0; }
+.how-banner strong { color: var(--gold); font-weight: 800; }
+@media (max-width: 1000px) { .steps { grid-template-columns: repeat(2, 1fr); } .steps > :last-child:nth-child(odd) { grid-column: 1 / -1; } }
+@media (max-width: 600px) { .steps { grid-template-columns: 1fr; margin-top: 28px; } .step { display: grid; grid-template-columns: auto 1fr; gap: 0 14px; align-items: start; } .step-num { grid-row: 1 / span 2; font-size: 2rem; margin: 0; } .how-banner { font-size: 1.05rem; padding: 18px 16px; } }
