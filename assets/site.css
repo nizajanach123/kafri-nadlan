@@ -658,4 +658,4 @@
 .how-banner { max-width: 920px; margin: 0 auto; background: var(--navy-deep); color: var(--cream); border-radius: var(--radius); padding: 22px 26px; text-align: center; font-size: 1.25rem; line-height: 1.6; }
 .how-banner p { margin: 0; }
 .how-banner strong { color: var(--gold); font-weight: 800; }
-@media (max-width: 600px) { .steps { margin-top: 28px; gap: 12px; } .step { gap: 2px 14px; padding: 16px 16px; } .step-num { min-width: 36px; font-size: 2.1rem; } .step h3 { font-size: 1.05rem; } .step p { font-size: .94rem; } .how-banner { font-size: 1.05rem; padding: 18px 16px; } }
+@media (max-width: 600px) { .steps { margin-top: 28px; gap: 12px; } .step { gap: 2px 14px; padding: 16px 16px; } .step-num { min-width: 36px; font-size: 2.1rem; } .step h3 { font-size: 1.05rem; } .step p { font-size: .94rem; } .how-banner { font-size: 1.05rem; padding: 18px 16px; } }.how-note { max-width: 920px; margin: 14px auto 0; text-align: center; font-size: .82rem; line-height: 1.6; color: var(--ink-soft); }
