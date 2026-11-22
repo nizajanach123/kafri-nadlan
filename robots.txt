@@ -2,4 +2,4 @@ User-agent: *
 Allow: /
 Disallow: /404.html
 
-Sitemap: https://kafri-nadlan.netlify.app/sitemap.xml
+Sitemap: https://kafri-nadlan.co.il/sitemap.xml
