@@ -482,7 +482,7 @@
   /* Projects hub + project pages */
   [hidden] { display: none !important; }
   #projects, #rehovot { background: var(--bg-alt); }
-  .pgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 28px; max-width: 920px; margin: 0 auto; }
+  .pgrid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 440px)); justify-content: center; gap: 28px; max-width: 920px; margin: 0 auto; }
   .pcard { display: flex; flex-direction: column; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius);
     overflow: hidden; box-shadow: var(--shadow); color: inherit; text-decoration: none; }
   .pcard.reveal.in { transition: opacity .7s, transform .45s cubic-bezier(.22, 1, .36, 1), box-shadow .35s ease, border-color .35s ease; }
