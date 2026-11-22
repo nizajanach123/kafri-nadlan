@@ -147,9 +147,6 @@ $sm = '<?xml version="1.0" encoding="UTF-8"?>' + "`n" + '<urlset xmlns="http://w
   (($urls | % { "  <url><loc>$SiteUrl$($_[0])</loc><lastmod>$Today</lastmod><priority>$($_[1])</priority></url>" }) -join "`n") + "`n</urlset>`n"
 WriteFile 'sitemap.xml' $sm
 WriteFile 'robots.txt' "User-agent: *`nAllow: /`nDisallow: /404.html`n`nSitemap: $SiteUrl/sitemap.xml`n"
-# the old *.pages.dev address forwards to the real domain
-WriteFile '_redirects' "https://kafri-nadlan.pages.dev/* https://kafri-nadlan.co.il/:splat 301`n"
-
 WriteFile '_headers' @"
 /*
   X-Content-Type-Options: nosniff
